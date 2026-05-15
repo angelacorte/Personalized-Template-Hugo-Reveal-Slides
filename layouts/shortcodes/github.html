@@ -1,10 +1,24 @@
-{{- $token := os.Getenv "GITHUB_TOKEN" -}}
-{{- $token := cond (gt ($token | len) 1) (dict "Authorization" $token "Accept" "application/json") "" -}}
 {{- $owner := .Get "owner" | default "DanySK" -}}
 {{- $repo := .Get "repo" | default "Template-Hugo-Reveal-Slides" -}}
 {{- $path := .Get "path" | default "LICENSE" -}}
 {{- $branch := .Get "branch" | default "master" -}}
-{{- $json := getJSON "https://api.github.com/repos/" $owner "/" $repo "/contents/" $path "?ref=" $branch $token -}}
+{{- $url := printf "https://api.github.com/repos/%s/%s/contents/%s?ref=%s" $owner $repo $path $branch -}}
+{{- $headers := dict "Accept" "application/vnd.github+json" -}}
+{{- with os.Getenv "GITHUB_TOKEN" -}}
+  {{- if gt (len .) 1 -}}
+    {{- $headers = merge $headers (dict "Authorization" .) -}}
+  {{- end -}}
+{{- end -}}
+{{- $json := dict -}}
+{{- with try (resources.GetRemote $url (dict "headers" $headers)) -}}
+  {{- with .Err -}}
+    {{- errorf "%s" . -}}
+  {{- else with .Value -}}
+    {{- $json = .Content | transform.Unmarshal (dict "format" "json") -}}
+  {{- else -}}
+    {{- errorf "Unable to get remote resource %q" $url -}}
+  {{- end -}}
+{{- end -}}
 {{- $content := $json.content | base64Decode | htmlUnescape -}}
 {{- $content := split $content "\n" -}}
 {{- $start := .Get "from" | default "1" | int | add -1 }}
